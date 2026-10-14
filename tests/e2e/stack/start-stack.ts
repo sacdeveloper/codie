@@ -9,6 +9,7 @@
  */
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import pg from "pg";
 import { DEFAULT_TEMPLATE } from "../../../src/lib/template/default-template";
@@ -18,7 +19,9 @@ import { startGateway } from "./gateway";
 const ROOT = resolve(import.meta.dirname, "../../..");
 const ART = join(ROOT, "tests/.artifacts");
 const BIN = join(ART, "stack-bin");
-const RUN = join(ART, "stack-run");
+// Runtime data (database cluster, stored files) lives in the system temp dir: when started as root the
+// cluster runs as the `postgres` user, which may not be able to traverse the checkout's parent folders.
+const RUN = join(tmpdir(), "codie-e2e-stack");
 const PG_PORT = 54322;
 const AUTH_PORT = 54329;
 const REST_PORT = 54330;
