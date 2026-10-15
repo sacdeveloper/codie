@@ -7,7 +7,7 @@ import { processPassportOcr, uploadPassportDocument } from "@/lib/passport/servi
 import { clientKeyFromHeaders, getLimiter } from "@/lib/security/rate-limit";
 
 export const runtime = "nodejs";
-export const maxDuration = 90;
+export const maxDuration = 60;
 
 /** Upload a passport (then OCR it) or an examinee photograph for a draft report. */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

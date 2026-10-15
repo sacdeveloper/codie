@@ -53,7 +53,8 @@ export class AzurePassportOcrProvider implements PassportOcrProvider {
     const fetchImpl = this.config.fetchImpl ?? fetch;
     const base = this.config.endpoint.replace(/\/+$/, "");
     const url = `${base}/documentintelligence/documentModels/prebuilt-idDocument:analyze?api-version=${encodeURIComponent(this.config.apiVersion)}`;
-    const timeoutMs = this.config.timeoutMs ?? 60_000;
+    // Stays inside a 60 s serverless function limit, leaving time to store the result.
+    const timeoutMs = this.config.timeoutMs ?? 45_000;
     const started = Date.now();
 
     const headers = { "Ocp-Apim-Subscription-Key": this.config.apiKey, "Content-Type": "application/json" };

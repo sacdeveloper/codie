@@ -21,11 +21,14 @@
     "purge:passports": "tsx scripts/purge-passports.ts",
     "e2e:stack": "tsx tests/e2e/stack/start-stack.ts",
     "render:sample": "tsx scripts/render-sample.ts tests/.artifacts",
-    "docs:fields": "tsx scripts/generate-field-map.ts"
+    "docs:fields": "tsx scripts/generate-field-map.ts",
+    "sql:bundle": "tsx scripts/sql-bundle.ts",
+    "fonts:generate": "node scripts/generate-fonts.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",
     "@radix-ui/react-slot": "^1.2.3",
+    "@sparticuz/chromium": "^141.0.0",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.3",
     "class-variance-authority": "^0.7.1",

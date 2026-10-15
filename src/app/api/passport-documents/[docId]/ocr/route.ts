@@ -7,7 +7,7 @@ import { processPassportOcr } from "@/lib/passport/service";
 import { clientKeyFromHeaders, getLimiter } from "@/lib/security/rate-limit";
 
 export const runtime = "nodejs";
-export const maxDuration = 90;
+export const maxDuration = 60;
 
 /** Retry OCR for an already uploaded passport document. */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ docId: string }> }) {

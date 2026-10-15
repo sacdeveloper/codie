@@ -144,6 +144,7 @@ See `.env.example`, which contains placeholders only. Never commit real values.
 | `ALLOW_MOCK_OCR_IN_PRODUCTION` | server | Must be `true` for the mock to work under `NODE_ENV=production` (E2E only) |
 | `PASSPORT_MAX_FILE_MB` | server | Upload size limit (default 10) |
 | `PDF_CHROMIUM_EXECUTABLE_PATH` | server | Optional custom Chromium binary |
+| `PDF_SERVERLESS_CHROMIUM` | server | `true` forces the bundled serverless Chromium (automatic on Vercel); `false` disables it |
 | `RATE_LIMIT_VERIFY_PER_MINUTE`, `RATE_LIMIT_UPLOAD_PER_MINUTE` | server | Per-IP/user limits |
 
 ## Database migrations
@@ -200,8 +201,53 @@ To run the E2E suite against a deployed environment instead, set `E2E_BASE_URL` 
 
 ## Deployment
 
-Any Node.js host that can run Chromium works: a container platform (Fly.io, Render, Railway, ECS, Cloud Run) or a VM.
-Serverless platforms with strict size limits need a slim Chromium build (set `PDF_CHROMIUM_EXECUTABLE_PATH`).
+### Vercel + Supabase (recommended; no local tools needed)
+
+PDF generation works on Vercel out of the box: on Vercel the app launches the serverless Chromium build
+(`@sparticuz/chromium`), and the report fonts are embedded in the template, so no system packages are needed.
+
+**1. Create the Supabase project** ([supabase.com](https://supabase.com) → New project; pick the region closest to your users).
+
+1. **SQL Editor → New query:** paste the whole of [`supabase/setup.sql`](supabase/setup.sql) and click **Run**. This creates the tables, security policies and private storage buckets.
+2. **Authentication → Users → Add user:** enter the first administrator's email and a strong password, and tick **Auto Confirm User**.
+3. **SQL Editor:** open [`supabase/bootstrap-organisation.sql`](supabase/bootstrap-organisation.sql), change the two values at the top (centre name, administrator email), paste it and click **Run**.
+4. **Authentication → Sign In / Providers:** turn **off** "Allow new users to sign up". Accounts are created by administrators.
+5. **Project Settings → API:** copy the **Project URL**, the **anon public** key and the **service_role** key.
+
+**2. Import the repository into Vercel** ([vercel.com/new](https://vercel.com/new) → Import `sacdeveloper/codie`). The Next.js framework is detected automatically.
+
+Add these **Environment Variables** before the first deploy:
+
+| Name | Value |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Project URL from step 1.5 |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | anon public key |
+| `SUPABASE_SERVICE_ROLE_KEY` | service_role key (keep secret) |
+| `VERIFICATION_TOKEN_SECRET` | a random string of 48+ characters, e.g. from `openssl rand -base64 48`. **Never change it later**, because it invalidates every QR code. |
+| `NEXT_PUBLIC_APP_URL` | your final URL, e.g. `https://reports.example.com`. If omitted, the Vercel production domain is used. |
+| `OCR_PROVIDER` | `azure` with `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT` and `AZURE_DOCUMENT_INTELLIGENCE_KEY`. Without OCR credentials staff enter passport details manually. For a trial only, `mock` plus `ALLOW_MOCK_OCR_IN_PRODUCTION=true` fills in clearly labelled fake data. |
+
+Then click **Deploy**. Vercel deploys the production site from the repository's default branch, so merge the work into it
+(or set **Settings → Git → Production Branch** to the branch you want).
+
+**3. Finish the Supabase auth settings** (Authentication → URL Configuration):
+
+- **Site URL** = your Vercel URL.
+- **Redirect URLs:** add `https://<your-domain>/auth/confirm`.
+- **Authentication → Emails:** paste `supabase/templates/invite.html` and `recovery.html` into the Invite and Reset Password templates. Invitations from **User Management** then work.
+
+**4. Recommended Vercel settings**
+
+- **Settings → Functions → Region:** the same region as the Supabase project (for example Mumbai `bom1` with Supabase `ap-south-1`).
+- Fluid compute (the default for new projects) keeps Chromium warm between requests. The first PDF after an idle period takes a few seconds longer. PDF-issuing routes allow up to 60 s.
+- Rate limits are per function instance on serverless. For strict limits, back `src/lib/security/rate-limit.ts` with Upstash Redis.
+- If you set a custom domain, update `NEXT_PUBLIC_APP_URL` and the Supabase Site URL **before** issuing real reports, because the URL is encoded in every QR code. Redeploy after changing `NEXT_PUBLIC_*` variables.
+
+Sign in at your Vercel URL with the administrator from step 1.2, then complete **Organisation Settings**.
+
+### Containers / VMs
+
+Any Node.js host that can run Chromium works: Fly.io, Render, Railway, ECS, Cloud Run, or a VM.
 
 ```bash
 docker build \
@@ -211,14 +257,13 @@ docker build \
 docker run -p 3000:3000 --env-file production.env medical-reporting
 ```
 
-Checklist:
+### Checklist (any host)
 
-- [ ] Migrations applied with `supabase db push`; sign-ups disabled; email templates and redirect URLs configured.
-- [ ] Secrets (`SUPABASE_SERVICE_ROLE_KEY`, `VERIFICATION_TOKEN_SECRET`, OCR keys) stored in the platform's secret manager, never in the image.
-- [ ] `NEXT_PUBLIC_APP_URL` set to the final production domain *before* issuing reports, because it is encoded in every QR code.
+- [ ] Database set up (`supabase/setup.sql`, or `supabase db push`); sign-ups disabled; email templates and redirect URLs configured.
+- [ ] Secrets (`SUPABASE_SERVICE_ROLE_KEY`, `VERIFICATION_TOKEN_SECRET`, OCR keys) stored in the platform's secret manager, never in the code or image.
+- [ ] `NEXT_PUBLIC_APP_URL` set to the final production domain *before* issuing reports.
 - [ ] HTTPS enforced (HSTS headers are sent by the app).
-- [ ] For more than one app instance, replace the in-memory rate limiter (`src/lib/security/rate-limit.ts`) with Redis/Upstash.
-- [ ] `fonts-liberation` installed on the host; the Dockerfile does this. The template relies on these Arial/Times-metric fonts.
+- [ ] For more than one instance, the in-memory rate limiter replaced with Redis/Upstash.
 - [ ] A daily `npm run purge:passports` job scheduled if a retention period is configured.
 
 ## Backups, retention and operations
@@ -249,8 +294,8 @@ Checklist:
 | "Mock OCR is disabled in production" | Configure `OCR_PROVIDER=azure`, or for a test deployment set `ALLOW_MOCK_OCR_IN_PRODUCTION=true`. |
 | OCR always fails with HTTP 401/404 | Check the Azure endpoint (resource URL, no path) and key. The model `prebuilt-idDocument` must exist in your API version. |
 | "The report content does not fit on a single A4 page" | Shorten the longest values (usually Remarks), or use "Issue with continuation page". |
-| PDF generation fails with "Executable doesn't exist" | Install Chromium (`npx playwright-core install chromium`) or set `PDF_CHROMIUM_EXECUTABLE_PATH`. |
-| Text looks different from the preview | Install `fonts-liberation` on the server. |
+| PDF generation fails with "Executable doesn't exist" | On a VM/container: `npx playwright-core install --with-deps chromium`, or set `PDF_CHROMIUM_EXECUTABLE_PATH`. Serverless hosts other than Vercel: set `PDF_SERVERLESS_CHROMIUM=true`. |
+| PDF times out on Vercel | Check that the function region is near Supabase and that the plan allows 60 s functions. The first render after a cold start is the slowest. |
 | QR codes point to `localhost` | `NEXT_PUBLIC_APP_URL` was wrong at build time. Rebuild with the production URL, then regenerate affected PDFs. Existing tokens remain valid. |
 | Invitation link says "link=invalid" | Update the Supabase email templates to the `token_hash` links in `supabase/templates/`. |
 | `npm run test:db` cannot find PostgreSQL | Install the PostgreSQL server package, or point `TEST_DATABASE_URL` at a disposable database. |
@@ -262,5 +307,5 @@ Checklist:
 - **No automatic fitness verdict:** the "FIT" stamp is physical, and the application never infers fitness or other conclusions.
 - **QR position:** the brief mentions a footer QR, while the reference prints it beside the identity details. The reference position is the default and the footer is selectable per template.
 - **Field length limits** were sized so that maximum-length uppercase values fit the printed cells. Unusually wide content is reported (overflow error) rather than clipped.
-- **Untested here:** the Docker image (container registries were unreachable in the build environment) and the real Azure OCR service (no credentials). The Azure integration is covered by contract tests with mocked HTTP responses; run it against your own resource before go-live.
+- **Untested here:** a live Vercel deployment (Vercel was unreachable from the build environment; the serverless Chromium build and font embedding were verified locally with the same binaries), the Docker image (container registries were unreachable) and the real Azure OCR service (no credentials). The Azure integration is covered by contract tests with mocked HTTP responses; run it against your own resource before go-live.
 - **Rate limiting** is in-memory per instance.

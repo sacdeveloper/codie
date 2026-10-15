@@ -14,6 +14,8 @@ import type { OrganisationRow } from "@/lib/supabase/types";
 
 export const metadata = { title: "Edit report" };
 export const dynamic = "force-dynamic";
+// Server actions on this page issue/regenerate PDFs (Chromium cold start on serverless hosts).
+export const maxDuration = 60;
 
 export default async function EditReportPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

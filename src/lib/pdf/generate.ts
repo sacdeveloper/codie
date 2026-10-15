@@ -30,14 +30,27 @@ function chromiumPath(): string | undefined {
   return undefined; // fall back to Playwright's managed browser (PLAYWRIGHT_BROWSERS_PATH)
 }
 
+/** Serverless hosts (Vercel, AWS Lambda) have no browser installed; use the @sparticuz/chromium build there. */
+function isServerlessChromium(): boolean {
+  return process.env.PDF_SERVERLESS_CHROMIUM === "true" || (Boolean(process.env.VERCEL) && process.env.PDF_SERVERLESS_CHROMIUM !== "false");
+}
+
+async function launchOptions(): Promise<{ executablePath?: string; args: string[] }> {
+  if (isServerlessChromium()) {
+    const { default: serverless } = await import("@sparticuz/chromium");
+    serverless.setGraphicsMode = false;
+    // --single-process crashes when several pages are rendered with one browser; Vercel functions don't need it.
+    const args = serverless.args.filter((a) => a !== "--single-process");
+    return { executablePath: await serverless.executablePath(), args: [...args, "--font-render-hinting=none"] };
+  }
+  return { executablePath: chromiumPath(), args: ["--no-sandbox", "--disable-dev-shm-usage", "--font-render-hinting=none"] };
+}
+
 async function getBrowser(): Promise<Browser> {
   if (!browserPromise) {
     browserPromise = (async () => {
       const { chromium } = await import("playwright-core");
-      const browser = await chromium.launch({
-        executablePath: chromiumPath(),
-        args: ["--no-sandbox", "--disable-dev-shm-usage", "--font-render-hinting=none"],
-      });
+      const browser = await chromium.launch({ ...(await launchOptions()), headless: true });
       browser.on("disconnected", () => {
         browserPromise = null;
       });

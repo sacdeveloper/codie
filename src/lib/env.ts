@@ -31,10 +31,18 @@ export type ServerEnv = z.infer<typeof serverSchema>;
 
 let cached: ServerEnv | null = null;
 
+/** On Vercel, fall back to the project's production domain when NEXT_PUBLIC_APP_URL is not set. */
+function withPlatformDefaults(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  if (!env.NEXT_PUBLIC_APP_URL && env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return { ...env, NEXT_PUBLIC_APP_URL: `https://${env.VERCEL_PROJECT_PRODUCTION_URL}` };
+  }
+  return env;
+}
+
 /** Server-only environment. Throws a descriptive (non-secret) error when misconfigured. */
 export function serverEnv(): ServerEnv {
   if (cached) return cached;
-  const parsed = serverSchema.safeParse(process.env);
+  const parsed = serverSchema.safeParse(withPlatformDefaults(process.env));
   if (!parsed.success) {
     const names = parsed.error.issues.map((i) => i.path.join(".")).join(", ");
     throw new Error(`Invalid server environment configuration: ${names}`);
@@ -45,7 +53,9 @@ export function serverEnv(): ServerEnv {
 
 /** Values safe to use in the browser. Next.js inlines NEXT_PUBLIC_* at build time. */
 export const publicEnv = {
-  appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
+  appUrl:
+    process.env.NEXT_PUBLIC_APP_URL ??
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "http://localhost:3000"),
   supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
   supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
 };

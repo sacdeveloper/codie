@@ -18,6 +18,8 @@ import { ReportActions } from "./report-actions";
 
 export const metadata = { title: "Report" };
 export const dynamic = "force-dynamic";
+// Server actions on this page issue/regenerate PDFs (Chromium cold start on serverless hosts).
+export const maxDuration = 60;
 
 function Meta({ label, children }: { label: string; children: React.ReactNode }) {
   return (

@@ -13,7 +13,9 @@ const nextConfig: NextConfig = {
   // Separate build output for the local E2E stack so it never clobbers a normal build.
   distDir: process.env.NEXT_DIST_DIR || ".next",
   // Playwright must not be bundled; it is loaded at runtime on the server only.
-  serverExternalPackages: ["playwright-core"],
+  serverExternalPackages: ["playwright-core", "@sparticuz/chromium"],
+  // The serverless Chromium binary is loaded from disk at runtime, so it must be traced into the functions.
+  outputFileTracingIncludes: { "/**": ["./node_modules/@sparticuz/chromium/bin/**"] },
   experimental: {
     serverActions: { bodySizeLimit: "12mb" },
   },

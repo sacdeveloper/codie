@@ -11,6 +11,7 @@
  *   [footer: seal space | contact lines (+ stamp space) | signature space + authorised signatory]
  */
 import { formatDate } from "@/lib/format";
+import { EMBEDDED_FONT_CSS } from "./fonts.generated";
 import type { FieldDefinition, FieldGroup, FieldValue, ReportData, ReportTemplate, TemplateSection } from "@/lib/template/types";
 
 export const PRINT_TEMPLATE_VERSION = "print-1.0.0";
@@ -213,32 +214,34 @@ export function renderReportHtml(input: RenderInput): string {
 <meta name="template-version" content="${esc(PRINT_TEMPLATE_VERSION)}/${esc(t.version)}"/>
 <title>${esc(meta.serialNumber)}</title>
 <style>
+  /* Embedded, metric-compatible fonts so output is identical on every server (incl. serverless). */
+  ${EMBEDDED_FONT_CSS}
   @page { size: A4 portrait; margin: 0; }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; background: #fff; }
   body { -webkit-print-color-adjust: exact; print-color-adjust: exact;
-    font-family: "Liberation Sans", Arial, Helvetica, sans-serif; font-size: ${layout.baseFontPt}pt; color: #000; }
+    font-family: "ReportSans", "Liberation Sans", Arial, Helvetica, sans-serif; font-size: ${layout.baseFontPt}pt; color: #000; }
   .page { position: relative; width: 210mm; ${mode === "single" ? "height: 297mm; overflow: hidden;" : "min-height: 297mm;"}
     padding: 0 ${layout.pageMarginMm}mm 5mm; display: flex; flex-direction: column; }
   #content { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
   .g { color: ${accent}; }
-  .v, .val, .res, .num { font-family: "Liberation Serif", "Times New Roman", Times, serif; color: #000; }
+  .v, .val, .res, .num { font-family: "ReportSerif", "Liberation Serif", "Times New Roman", Times, serif; color: #000; }
   .letterhead { height: ${t.letterheadConfiguration.heightMm}mm; flex: 0 0 auto; }
   .lh-image img { width: 100%; height: 100%; object-fit: contain; object-position: top center; }
   .lh-text { display: flex; justify-content: space-between; align-items: flex-start; padding-top: 7mm; color: ${accent}; }
   .lh-left { display: flex; gap: 3mm; align-items: flex-start; }
   .lh-logo { max-height: 18mm; max-width: 22mm; object-fit: contain; }
-  .lh-name { font-family: "Liberation Serif", serif; font-weight: bold; font-size: 17pt; letter-spacing: .3pt; }
-  .lh-reg, .lh-acc { font-family: "Liberation Serif", serif; font-size: 10pt; }
+  .lh-name { font-family: "ReportSerif", "Liberation Serif", serif; font-weight: bold; font-size: 17pt; letter-spacing: .3pt; }
+  .lh-reg, .lh-acc { font-family: "ReportSerif", "Liberation Serif", serif; font-size: 10pt; }
   .lh-acc { margin-top: 2mm; font-size: 11pt; }
-  .lh-right { text-align: right; font-family: "Liberation Serif", serif; font-size: 10pt; line-height: 1.25; max-width: 75mm; }
+  .lh-right { text-align: right; font-family: "ReportSerif", "Liberation Serif", serif; font-size: 10pt; line-height: 1.25; max-width: 75mm; }
 
   .box { border: 0.35mm solid ${accent}; }
   .idbox { display: grid; grid-template-columns: 42mm 1fr; }
   .id-photo-head { border-right: 0.35mm solid ${accent}; border-bottom: 0.35mm solid ${accent}; }
   .id-title { border-bottom: 0.35mm solid ${accent}; display: flex; align-items: center; justify-content: center; gap: 6mm; height: 8.5mm; }
   .title { color: ${accent}; font-weight: bold; font-size: 15pt; letter-spacing: 1.6pt; }
-  .subtitle { font-family: "Liberation Serif", serif; font-weight: bold; font-size: 12.5pt; }
+  .subtitle { font-family: "ReportSerif", "Liberation Serif", serif; font-weight: bold; font-size: 12.5pt; }
   .id-photo { border-right: 0.35mm solid ${accent}; display: flex; align-items: center; justify-content: center; padding: 3mm 0; }
   .photo-box { width: 33mm; height: 42mm; }
   .photo-box img { width: 100%; height: 100%; object-fit: cover; }
@@ -250,12 +253,12 @@ export function renderReportHtml(input: RenderInput): string {
   .lab { white-space: nowrap; }
   .val { font-size: 10.5pt; margin-left: 2mm; }
   .meta-date { flex: 0 0 33%; } .meta-valid { flex: 0 0 34%; } .meta-serial { flex: 1; text-align: right; padding-right: 8mm; }
-  .valid-label { font-family: "Liberation Serif", serif; font-weight: bold; font-size: 10.5pt; }
+  .valid-label { font-family: "ReportSerif", "Liberation Serif", serif; font-weight: bold; font-size: 10.5pt; }
   .name-title { margin-right: 3mm; }
   .details { display: grid; grid-template-columns: 1fr 1.05fr 0.95fr; column-gap: 2mm; padding: 1mm 1.5mm 0; row-gap: 0.4mm; }
   .details .cell { display: flex; align-items: baseline; min-width: 0; height: 5.2mm; }
   .details .val { white-space: nowrap; overflow: hidden; text-overflow: clip; }
-  .unit { margin-left: 1.5mm; font-family: "Liberation Serif", serif; }
+  .unit { margin-left: 1.5mm; font-family: "ReportSerif", "Liberation Serif", serif; }
   .lower { display: grid; grid-template-columns: 1fr 27mm; padding: 0 1.5mm 1mm; column-gap: 2mm; }
   .position { display: flex; align-items: baseline; height: 6mm; }
   .history { margin-top: 1.4mm; }
