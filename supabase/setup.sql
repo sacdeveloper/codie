@@ -887,3 +887,70 @@ create policy "assets delete (org admin)" on storage.objects for delete to authe
   using (bucket_id = 'organisation-assets'
          and (storage.foldername(name))[1] = public.current_org_id()::text
          and public.has_role(array['org_admin']::public.app_role[]));
+
+-- ===== 20261015000500_hardening_grants.sql =====
+-- Hardening from Supabase database advisors (security + performance).
+
+-- Internal trigger functions are never meant to be called through the API.
+revoke execute on function public.handle_new_user() from public, anon, authenticated;
+revoke execute on function public.profiles_guard() from public, anon, authenticated;
+revoke execute on function public.reports_before_write() from public, anon, authenticated;
+revoke execute on function public.reports_audit_status() from public, anon, authenticated;
+revoke execute on function public.report_templates_guard() from public, anon, authenticated;
+revoke execute on function public.passport_documents_guard() from public, anon, authenticated;
+revoke execute on function public.report_files_guard() from public, anon, authenticated;
+revoke execute on function public.touch_updated_at() from public, anon, authenticated;
+revoke execute on function public.audit_logs_immutable() from public, anon, authenticated;
+
+-- RLS helper functions are needed by signed-in users only.
+revoke execute on function public.current_org_id() from public, anon;
+revoke execute on function public.current_app_role() from public, anon;
+revoke execute on function public.has_role(public.app_role[]) from public, anon;
+grant execute on function public.current_org_id() to authenticated;
+grant execute on function public.current_app_role() to authenticated;
+grant execute on function public.has_role(public.app_role[]) to authenticated;
+
+-- Explicitly keep the intended public entry points.
+grant execute on function public.verify_report(text) to anon, authenticated;
+grant execute on function public.log_audit_event(text, text, uuid, uuid, jsonb) to authenticated;
+
+-- ===== 20261015000501_hardening_policies.sql =====
+-- Hardening from Supabase database advisors (security + performance).
+
+-- Evaluate auth.uid() once per statement instead of once per row.
+alter policy profiles_select on public.profiles
+  using (id = (select auth.uid())
+         or (organisation_id = public.current_org_id())
+         or public.has_role(array['super_admin']::public.app_role[]));
+alter policy profiles_update on public.profiles
+  using (id = (select auth.uid())
+         or (organisation_id = public.current_org_id() and public.has_role(array['org_admin']::public.app_role[]))
+         or public.has_role(array['super_admin']::public.app_role[]))
+  with check (id = (select auth.uid())
+         or (organisation_id = public.current_org_id() and public.has_role(array['org_admin']::public.app_role[]))
+         or public.has_role(array['super_admin']::public.app_role[]));
+
+-- ===== 20261015000502_hardening_fk_indexes.sql =====
+-- Hardening from Supabase database advisors (security + performance).
+
+-- Covering indexes for foreign keys.
+create index if not exists audit_logs_actor_idx on public.audit_logs (actor_id);
+create index if not exists passport_documents_reviewed_by_idx on public.passport_documents (reviewed_by);
+create index if not exists passport_documents_uploaded_by_idx on public.passport_documents (uploaded_by);
+create index if not exists report_files_generated_by_idx on public.report_files (generated_by);
+create index if not exists report_files_organisation_idx on public.report_files (organisation_id);
+create index if not exists report_templates_created_by_idx on public.report_templates (created_by);
+create index if not exists reports_approved_by_idx on public.reports (approved_by);
+create index if not exists reports_created_by_idx on public.reports (created_by);
+create index if not exists reports_identity_confirmed_by_idx on public.reports (identity_confirmed_by);
+create index if not exists reports_submitted_by_idx on public.reports (submitted_by);
+create index if not exists reports_superseded_by_idx on public.reports (superseded_by);
+create index if not exists reports_template_idx on public.reports (template_id);
+create index if not exists reports_updated_by_idx on public.reports (updated_by);
+
+-- ===== 20261015000503_hardening_extension_schema.sql =====
+-- Hardening from Supabase database advisors (security + performance).
+
+-- Extensions do not belong in the API-exposed public schema.
+create schema if not exists extensions;
+alter extension pg_trgm set schema extensions;
